@@ -44,7 +44,7 @@ fn main() {
     }
 }
 
-fn cmd(cmd: &str, stream: &mut LigmaListener) -> bool {
+fn cmd(cmd: &str, stream: &mut IcmpListener) -> bool {
     if cmd.eq("exit") {
         stream.write("OK".as_bytes()).unwrap();
         return true;

@@ -28,7 +28,7 @@ static ending: &str = "DONE";
 struct Host {
     //name: String,
     os: String,
-    stream: LigmaListener,
+    stream: IcmpListener,
     //connected: bool,
 }
 
@@ -75,8 +75,7 @@ fn main() {
                 Host {
                     //name: preset.hostname.clone(),
                     os: preset.os.clone(),
-                    //stream: LigmaListener::new("br-c62428f26c3d".to_string(), ip.parse().unwrap()),
-                    stream: LigmaListener::new(
+                    stream: IcmpListener::new(
                         get_default_interface().unwrap().name,
                         ip.parse().unwrap(),
                     ),
