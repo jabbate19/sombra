@@ -1,0 +1,679 @@
+{
+  "teams": 15,
+  "setup": [
+    {
+      "ip": "10.1.x.1",
+      "hostname": "squid",
+      "os": "WINDOWS",
+      "groups": [
+        "AD",
+        "DNS"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "10.1.x.2",
+      "hostname": "penguin",
+      "os": "WINDOWS",
+      "groups": [
+        "ICMP"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "10.1.x.3",
+      "hostname": "sealion",
+      "os": "WINDOWS",
+      "groups": [
+        "WinRM"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "10.1.x.4",
+      "hostname": "albatross",
+      "os": "LINUX",
+      "groups": [
+        "SSH"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "10.1.x.5",
+      "hostname": "orca",
+      "os": "LINUX",
+      "groups": [
+        "SMTP",
+        "IMAP"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "10.1.x.6",
+      "hostname": "whale",
+      "os": "LINUX",
+      "groups": [
+        "ICMP"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "172.17.x.1",
+      "hostname": "pipeline",
+      "os": "BSD",
+      "groups": [
+        "SSH",
+        "FTP"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "172.17.x.2",
+      "hostname": "drill",
+      "os": "WINDOWS",
+      "groups": [
+        "HTTP",
+        "SQL"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "172.17.x.4",
+      "hostname": "tank",
+      "os": "WINDOWS",
+      "groups": [
+        "SMB"
+      ],
+      "connected": false
+    },
+    {
+      "ip": "172.21.61.60",
+      "hostname": "ligma",
+      "os": "OTHER",
+      "groups": [],
+      "connected": true
+    }
+  ],
+  "breaks": {
+    "Routing": [
+      {
+        "name": "Turn off pfctl",
+        "cmd": [
+          [
+            "pfctl",
+            "-F",
+            "rules"
+          ]
+        ]
+      }
+    ],
+    "AD": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "remoteport=389",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "localport=389",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "net",
+            "stop",
+            "adds"
+          ]
+        ]
+      }
+    ],
+    "DNS": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=udp",
+            "remoteport=53",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=udp",
+            "localport=53",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "net",
+            "stop",
+            "dns"
+          ]
+        ]
+      },
+      {
+        "name": "Registry",
+        "cmd": [
+          [
+            "net",
+            "stop",
+            "dns"
+          ],
+          [
+            "reg",
+            "add",
+            "HTLM\\SYSTEM\\CurrentControlSet\\Services\\DNS",
+            "/v",
+            "ImagePath",
+            "/t",
+            "REG_EXPAND_SZ",
+            "/d",
+            "%systemroot%/system32/dnsurmom.exe"
+          ]
+        ]
+      }
+    ],
+    "ICMP-LINUX": [
+      {
+        "name": "Sysctl",
+        "cmd": [
+          [
+            "sysctl",
+            "net.ipv4.icmp_echo_ignore_all=1"
+          ]
+        ]
+      },
+      {
+        "name": "iptables",
+        "cmd": [
+          [
+            "iptables",
+            "-A",
+            "INPUT",
+            "-p",
+            "icmp",
+            "-j",
+            "DROP"
+          ]
+        ]
+      },
+      {
+        "name": "iptables mangle",
+        "cmd": [
+          [
+            "iptables",
+            "-t",
+            "mangle",
+            "-A",
+            "INPUT",
+            "-p",
+            "icmp",
+            "-j",
+            "DROP"
+          ]
+        ]
+      }
+    ],
+    "ICMP-WIN": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=icmpv4:8,any",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=icmpv4:0,any",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      }
+    ],
+    "WinRM": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "remoteport=5985",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "localport=5985",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "net",
+            "stop",
+            "WinRM"
+          ]
+        ]
+      },
+      {
+        "name": "Default Port",
+        "cmd": [
+          [
+            "winrm",
+            "set",
+            "winrm/config/service/defaultports",
+            "'@{HTTP=\"5965\"}'"
+          ]
+        ]
+      }
+    ],
+    "SSH-LINUX": [
+      {
+        "name": "Change port",
+        "cmd": [
+          [
+            "sed",
+            "-i",
+            "-e",
+            "$aPort 23",
+            "/etc/ssh/sshd_config"
+          ],
+          [
+            "systemctl",
+            "restart",
+            "sshd"
+          ]
+        ]
+      },
+      {
+        "name": "Change port hidden",
+        "cmd": [
+          [
+            "touch",
+            "/etc/ssh/sshd_config.d/.chom.conf"
+          ],
+          [
+            "sed",
+            "-i",
+            "-e",
+            "$aPort 23",
+            "/etc/ssh/sshd_config.d/.chom.conf"
+          ],
+          [
+            "systemctl",
+            "restart",
+            "sshd"
+          ]
+        ]
+      },
+      {
+        "name": "Turn off Service",
+        "cmd": [
+          [
+            "systemctl",
+            "stop",
+            "sshd"
+          ]
+        ]
+      }
+    ],
+    "SSH-BSD": [
+      {
+        "name": "Change port",
+        "cmd": [
+          [
+            "sed",
+            "-i",
+            "-e",
+            "$aPort 23",
+            "/etc/ssh/sshd_config"
+          ],
+          [
+            "service",
+            "restart",
+            "sshd"
+          ]
+        ]
+      },
+      {
+        "name": "Change port hidden",
+        "cmd": [
+          [
+            "touch",
+            "/etc/ssh/sshd_config.d/.chom.conf"
+          ],
+          [
+            "sed",
+            "-i",
+            "-e",
+            "$aPort 23",
+            "/etc/ssh/sshd_config.d/.chom.conf"
+          ],
+          [
+            "service",
+            "sshd",
+            "restart"
+          ]
+        ]
+      },
+      {
+        "name": "Turn off Service",
+        "cmd": [
+          [
+            "service",
+            "sshd",
+            "stop"
+          ]
+        ]
+      }
+    ],
+    "SMTP": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "iptables",
+            "-A",
+            "INPUT",
+            "-p",
+            "TCP",
+            "--dport",
+            "25",
+            "-j",
+            "DROP"
+          ],
+          [
+            "iptables",
+            "-A",
+            "OUTPUT",
+            "-p",
+            "TCP",
+            "--sport",
+            "25",
+            "-j",
+            "DROP"
+          ]
+        ]
+      },
+      {
+        "name": "Firewall Mangle",
+        "cmd": [
+          [
+            "iptables",
+            "-t",
+            "mangle",
+            "-A",
+            "INPUT",
+            "-p",
+            "TCP",
+            "--dport",
+            "25",
+            "-j",
+            "DROP"
+          ],
+          [
+            "iptables",
+            "-t",
+            "mangle",
+            "-A",
+            "OUTPUT",
+            "-p",
+            "TCP",
+            "--sport",
+            "25",
+            "-j",
+            "DROP"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "systemctl",
+            "stop",
+            "postfix"
+          ]
+        ]
+      }
+    ],
+    "IMAP": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "iptables",
+            "-A",
+            "INPUT",
+            "-p",
+            "TCP",
+            "--dport",
+            "143",
+            "-j",
+            "DROP"
+          ],
+          [
+            "iptables",
+            "-A",
+            "OUTPUT",
+            "-p",
+            "TCP",
+            "--sport",
+            "143",
+            "-j",
+            "DROP"
+          ]
+        ]
+      },
+      {
+        "name": "Firewall Mangle",
+        "cmd": [
+          [
+            "iptables",
+            "-t",
+            "mangle",
+            "-A",
+            "INPUT",
+            "-p",
+            "TCP",
+            "--dport",
+            "143",
+            "-j",
+            "DROP"
+          ],
+          [
+            "iptables",
+            "-t",
+            "mangle",
+            "-A",
+            "OUTPUT",
+            "-p",
+            "TCP",
+            "--sport",
+            "143",
+            "-j",
+            "DROP"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "systemctl",
+            "stop",
+            "dovecot"
+          ]
+        ]
+      }
+    ],
+    "HTTP": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "remoteport=80",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "localport=80",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      }
+    ],
+    "SQL": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "remoteport=3306",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "localport=3306",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      }
+    ],
+    "SMB": [
+      {
+        "name": "Firewall",
+        "cmd": [
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "remoteport=445",
+            "action=block",
+            "dir=in"
+          ],
+          [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=\"oops\"",
+            "protocol=tcp",
+            "localport=445",
+            "action=block",
+            "dir=out"
+          ]
+        ]
+      },
+      {
+        "name": "Service",
+        "cmd": [
+          [
+            "net",
+            "stop",
+            "LanmanServer"
+          ]
+        ]
+      }
+    ]
+  }
+}

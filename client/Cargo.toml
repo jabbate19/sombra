@@ -1,0 +1,13 @@
+[package]
+name = "rshell"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bsod = "0.1.1"
+default-net = "0.11.0"
+pnet = { version = "0.31.0", features = ["std"] }
+sha1 = "0.10.5"
+windows = { version = "0.43.0", features = ["Win32_System_ProcessStatus", "Win32_Foundation"] }
