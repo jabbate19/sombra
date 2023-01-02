@@ -10,7 +10,6 @@ use cursive::{
     views::{Button, Dialog, EditView, LinearLayout, PaddedView, ScrollView, SelectView, TextView},
     Cursive,
 };
-use default_net::get_default_interface;
 use icmp::IcmpListener;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -24,12 +23,8 @@ use std::{
 
 static ending: &str = "DONE";
 
-//#[derive(Debug)]
 struct Host {
-    //name: String,
     os: String,
-    stream: IcmpListener,
-    //connected: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -55,47 +50,49 @@ struct Break {
 }
 
 fn main() {
-    let config_file = read_to_string("config.json").unwrap();
-    let config: Config = from_str(&config_file).unwrap();
-    let config2 = config.clone();
-    let config3 = config.clone();
-    let mut siv = cursive::default();
+    let config: Config = read_to_string("config.json").map(|config_file| from_str(&config_file)).unwrap().unwrap();
+    let config_teams = config.clone();
+    let config_boxes = config.clone();
+    
     let streams = Arc::new(Mutex::new(HashMap::<String, Host>::new()));
-
+    let listener = Arc::new(Mutex::new(IcmpListener::new("tap0".to_owned())));
     let mut team_ip = vec![];
     team_ip.push(vec![]);
     for team in 1..=config.teams {
         let mut ip_list = vec![];
         for preset in &config.setup {
-            let ip = preset.ip.replace("x", &format!("{}", team));
+            let val = if &preset.hostname == "ROUTER" {
+                (8 * team) - 6
+            } else {
+                team
+            };
+            let ip = preset.ip.replace("x", &format!("{}", val));
             ip_list.push(ip.clone());
             let mut stream_lock = streams.lock().unwrap();
             stream_lock.insert(
                 ip.clone(),
                 Host {
-                    //name: preset.hostname.clone(),
                     os: preset.os.clone(),
-                    stream: IcmpListener::new(
-                        get_default_interface().unwrap().name,
-                        ip.parse().unwrap(),
-                    ),
-                    //connected: true
                 },
             );
         }
         team_ip.push(ip_list);
     }
     let team_ip = Arc::new(Mutex::new(team_ip));
-    let thread_arc = streams.clone();
-    let thread_arc2 = streams.clone();
-    let thread_arc3 = streams.clone();
-    let thread_arc4 = streams.clone();
-    let thread_arc5 = streams.clone();
-    let thread_arc6 = streams.clone();
+    let table_streams_arc = streams.clone();
+    let select_all_streams_arc = streams.clone();
+    let all_streams_arc = streams.clone();
+    let os_streams_arc = streams.clone();
+    let teams_streams_arc = streams.clone();
+    let boxes_streams_arc = streams.clone();
+    
+    let table_listener_arc = listener.clone();
+    let select_all_listener_arc = listener.clone();
+
+    let mut siv = cursive::default();
 
     let mut theme = siv.current_theme().clone();
 
-    //theme.shadow = !theme.shadow;
     theme.borders = BorderStyle::Outset;
     theme
         .palette
@@ -128,8 +125,9 @@ fn main() {
             SelectView::<String>::new()
                 .h_align(HAlign::Center)
                 .on_submit(move |siv, socket: &str| {
-                    let thread_arc_in = thread_arc.clone();
-                    pick_object(siv, socket, thread_arc_in);
+                    let pick_object_streams_arc = table_streams_arc.clone();
+                    let pick_object_listener_arc = table_listener_arc.clone();
+                    pick_object(siv, socket, pick_object_streams_arc, pick_object_listener_arc);
                 })
                 .with_name("table"),
         ))
@@ -139,13 +137,15 @@ fn main() {
             0,
             0,
             Button::new("Select All", move |s| {
-                let thread_arc_in = thread_arc2.clone();
-                select_all(s, thread_arc_in);
+                let select_all_streams_arc_internal = select_all_streams_arc.clone();
+                let select_all_listener_arc_internal = select_all_listener_arc.clone();
+                select_all(s, select_all_streams_arc_internal, select_all_listener_arc_internal);
             }),
         ));
+
     siv.menubar()
         .add_leaf("All Systems", move |s| {
-            if let Ok(t) = thread_arc6.lock() {
+            if let Ok(t) = all_streams_arc.lock() {
                 s.call_on_name("table", |view: &mut SelectView| {
                     let mut keys: Vec<&String> = t.keys().collect();
                     keys.sort();
@@ -157,32 +157,26 @@ fn main() {
         .add_subtree(
             "OS",
             menu::Tree::new().with(move |tree| {
-                let thread_arc_in = thread_arc3.clone();
-                tree_os(tree, thread_arc_in);
+                let tree_os_streams_arc = os_streams_arc.clone();
+                tree_os(tree, tree_os_streams_arc);
             }),
         )
         .add_subtree(
             "Teams",
             menu::Tree::new().with(move |tree| {
-                let thread_arc_in = thread_arc4.clone();
-                tree_teams(tree, thread_arc_in, config2, team_ip);
+                let tree_teams_streams_arc = teams_streams_arc.clone();
+                tree_teams(tree, tree_teams_streams_arc, config_teams, team_ip);
             }),
         )
         .add_subtree(
             "Boxes",
             menu::Tree::new().with(move |tree| {
-                let thread_arc_in = thread_arc5.clone();
-                tree_boxes(tree, thread_arc_in, config3);
+                let tree_boxes_streams_arc = boxes_streams_arc.clone();
+                tree_boxes(tree, tree_boxes_streams_arc, config_boxes);
             }),
         )
         .add_delimiter()
         .add_leaf("Quit", |s| s.quit());
-
-    // When `autohide` is on (default), the menu only appears when active.
-    // Turning it off will leave the menu always visible.
-    // Try uncommenting this line!
-
-    // siv.set_autohide_menu(false);
 
     siv.add_global_callback(Key::Esc, |s| s.select_menubar());
 
@@ -191,19 +185,30 @@ fn main() {
     siv.run();
 }
 
-fn pick_object(siv: &mut Cursive, socket: &str, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
-    let thread_arc2 = thread_arc.clone();
+fn pick_object(
+    siv: &mut Cursive,
+    socket: &str,
+    streams_arc: Arc<Mutex<HashMap<String, Host>>>,
+    mut listener: Arc<Mutex<IcmpListener>>,
+) {
+    let shell_streams_arc = streams_arc.clone();
+    let set = Arc::new(Some(String::from(socket)));
     siv.add_layer(
         Dialog::new()
             .title(format!("{}", socket))
             .padding_lrtb(1, 1, 1, 0)
             .content(
                 LinearLayout::vertical()
-                    .child(ScrollView::new(TextView::empty().with_name("shellout")).scroll_strategy(ScrollStrategy::StickToBottom))
+                    .child(
+                        ScrollView::new(TextView::empty().with_name("shellout"))
+                            .scroll_strategy(ScrollStrategy::StickToBottom),
+                    )
                     .child(
                         EditView::new()
                             .on_submit(move |s, cmd| {
-                                shell(s, cmd, thread_arc2.clone());
+                                let shell_listener = listener.clone();
+                                let shell_set = set.clone();
+                                shell(s, cmd, shell_streams_arc.clone(), shell_listener, shell_set);
                             })
                             .with_name("shell"),
                     ),
@@ -214,7 +219,13 @@ fn pick_object(siv: &mut Cursive, socket: &str, thread_arc: Arc<Mutex<HashMap<St
     );
 }
 
-fn shell(s: &mut Cursive, cmd: &str, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
+fn shell(
+    s: &mut Cursive,
+    cmd: &str,
+    streams_arc: Arc<Mutex<HashMap<String, Host>>>,
+    mut listener_arc: Arc<Mutex<IcmpListener>>,
+    specific_ip: Arc<Option<String>>,
+) {
     if cmd == "clear" {
         s.call_on_name("shell", |view: &mut EditView| {
             view.set_content("");
@@ -230,13 +241,24 @@ fn shell(s: &mut Cursive, cmd: &str, thread_arc: Arc<Mutex<HashMap<String, Host>
         view.get_shared_content().append(format!("> {}\n", cmd));
     });
     for (_, sock) in s.find_name::<SelectView>("table").unwrap().iter() {
-        let mut lock = thread_arc.lock().unwrap();
-        let shell_stream = &mut lock.get_mut(sock).unwrap().stream;
-        shell_stream.write(cmd.as_bytes()).unwrap();
+        let mut lock = streams_arc.lock().unwrap();
+        let sock2 = sock.split_whitespace().next().unwrap();
+        match *specific_ip {
+            Some(ref specific) => {
+                let specific2 = specific.split_whitespace().next().unwrap();
+                if sock2 != specific2 {
+                    continue;
+                }
+            }
+            None => {}
+        }
+        let mut listener = listener_arc.lock().unwrap();
+        listener.set_dest(sock2.parse().unwrap());
+        listener.write(cmd.as_bytes()).unwrap();
         let mut first = true;
         loop {
             let mut buffer = [0; 250000];
-            let output = shell_stream.read(&mut buffer).unwrap();
+            let output = listener.read(&mut buffer).unwrap();
             if output == 0 {
                 s.call_on_name("shell", |view: &mut EditView| {
                     view.set_content("");
@@ -248,15 +270,6 @@ fn shell(s: &mut Cursive, cmd: &str, thread_arc: Arc<Mutex<HashMap<String, Host>
                         .append(format!("{} < CONNECTION LOST\n", sock));
                 })
                 .unwrap();
-                // lock.remove(sock);
-                // s.call_on_name(
-                //     "table",
-                //     |view: &mut SelectView| {
-                //         let keys = lock.keys();
-                //         view.clear();
-                //         view.add_all_str(keys);
-                //     },
-                // );
                 break;
             }
             let outstr = String::from_utf8(Vec::from(buffer)).unwrap();
@@ -284,7 +297,7 @@ fn shell(s: &mut Cursive, cmd: &str, thread_arc: Arc<Mutex<HashMap<String, Host>
             })
             .unwrap();
 
-            let _ = end_check.drain(..end_check.len() - 5);
+            let _ = end_check.drain(..end_check.len() - 4);
             if end_check == ending {
                 break;
             }
@@ -296,7 +309,11 @@ fn shell(s: &mut Cursive, cmd: &str, thread_arc: Arc<Mutex<HashMap<String, Host>
     }
 }
 
-fn select_all(s: &mut Cursive, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
+fn select_all(
+    s: &mut Cursive,
+    streams_arc: Arc<Mutex<HashMap<String, Host>>>,
+    listener: Arc<Mutex<IcmpListener>>,
+) {
     s.add_layer(
         Dialog::new()
             .title("All")
@@ -307,8 +324,9 @@ fn select_all(s: &mut Cursive, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
                     .child(
                         EditView::new()
                             .on_submit(move |s, cmd| {
-                                let thread_arc2 = thread_arc.clone();
-                                shell(s, cmd, thread_arc2);
+                                let l2 = listener.clone();
+                                let shell_streams_arc = streams_arc.clone();
+                                shell(s, cmd, shell_streams_arc, l2, Arc::new(None));
                             })
                             .with_name("shell"),
                     ),
@@ -319,11 +337,11 @@ fn select_all(s: &mut Cursive, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
     );
 }
 
-fn tree_os(tree: &mut menu::Tree, thread_arc: Arc<Mutex<HashMap<String, Host>>>) {
+fn tree_os(tree: &mut menu::Tree, streams_arc: Arc<Mutex<HashMap<String, Host>>>) {
     for os in ["WINDOWS", "LINUX", "BSD", "OTHER"] {
-        let thread_arc2 = thread_arc.clone();
+        let leaf_streams_arc = streams_arc.clone();
         tree.add_item(menu::Item::leaf(format!("{}", os), move |s| {
-            if let Ok(t) = thread_arc2.lock() {
+            if let Ok(t) = leaf_streams_arc.lock() {
                 s.call_on_name("table", |view: &mut SelectView| {
                     let mut keys: Vec<&String> = t
                         .keys()
@@ -350,7 +368,7 @@ fn tree_boxes(
             move |s| {
                 if let Ok(t) = thread_arc2.lock() {
                     s.call_on_name("table", |view: &mut SelectView| {
-                        let mut keys: Vec<&String> = t
+                        let keys: Vec<&String> = t
                             .keys()
                             .filter(|x| {
                                 let ip = x.split(':').next().unwrap();
@@ -358,9 +376,20 @@ fn tree_boxes(
                                 re.is_match(ip)
                             })
                             .collect();
-                        keys.sort();
+                        let mut new_keys: Vec<String> = Vec::new();
+                        for key in keys {
+                            let mut parts = key.split(".");
+                            let part: usize = if parts.next().unwrap() == "192" {
+                                let x: usize = parts.last().unwrap().parse().unwrap();
+                                (x + 6) / 8
+                            } else {
+                                parts.next().unwrap().parse().unwrap()
+                            };
+                            new_keys.push(format!("{} (Team {})", key, part));
+                        }
+                        new_keys.sort();
                         view.clear();
-                        view.add_all_str(keys);
+                        view.add_all_str(new_keys);
                     });
                 }
             },

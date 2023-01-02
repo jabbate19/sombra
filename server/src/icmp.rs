@@ -1,31 +1,32 @@
-use default_net::get_default_gateway;
-use pnet::datalink::Channel::Ethernet;
-use pnet::datalink::DataLinkReceiver;
-use pnet::datalink::DataLinkSender;
-use pnet::datalink::{self, NetworkInterface};
-use pnet::packet::ethernet::EtherType;
-use pnet::packet::ethernet::EthernetPacket;
-use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::packet::icmp::IcmpPacket;
-use pnet::packet::icmp::IcmpType;
-use pnet::packet::icmp::MutableIcmpPacket;
-use pnet::packet::ip::IpNextHeaderProtocol;
-use pnet::packet::ipv4::MutableIpv4Packet;
-use pnet::packet::ipv4::{checksum, Ipv4Packet};
-use pnet::packet::Packet;
-use pnet::util::MacAddr;
-use std::io::{Read, Write};
-use std::net::IpAddr::{V4, V6};
-use std::net::Ipv4Addr;
-use std::str::FromStr;
-use std::time::SystemTime;
-// Invoke as echo <interface name>
+use pnet::{
+    datalink::{
+        channel, interfaces, Channel::Ethernet, Config, DataLinkReceiver, DataLinkSender,
+        NetworkInterface,
+    },
+    ipnetwork::IpNetwork,
+    packet::{
+        ethernet::{EtherType, EthernetPacket, MutableEthernetPacket},
+        icmp::{IcmpPacket, IcmpType, MutableIcmpPacket},
+        ip::IpNextHeaderProtocol,
+        ipv4::{checksum, Ipv4Packet, MutableIpv4Packet},
+        Packet,
+    },
+    util::MacAddr,
+};
+use std::{
+    io::{Read, Write},
+    net::{
+        IpAddr::{V4, V6},
+        Ipv4Addr,
+    },
+    str::FromStr,
+    time::SystemTime,
+};
 
 static cmd_init: &[u8; 22] = b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0HELLO";
-static cmd_resp: &[u8; 5] = b"GOODBYE";
+static cmd_resp: &[u8; 7] = b"GOODBYE";
 
-//#[derive(Debug)]
-pub struct iCMPListener {
+pub struct IcmpListener {
     tx: Box<dyn DataLinkSender>,
     rx: Box<dyn DataLinkReceiver>,
     ip_src: Ipv4Addr,
@@ -34,24 +35,31 @@ pub struct iCMPListener {
     mac_dst: MacAddr,
 }
 
+fn get_addr(interface: &NetworkInterface) -> Ipv4Addr {
+    for net in &interface.ips {
+        match net {
+            IpNetwork::V4(x) => {
+                return x.ip();
+            }
+            IpNetwork::V6(_) => continue,
+        }
+    }
+    panic!("");
+}
+
 impl IcmpListener {
-    pub fn new(interface_name: String, ip_dst: Ipv4Addr) -> IcmpListener {
+    pub fn new(interface_name: String) -> IcmpListener {
         let interface_names_match = |iface: &NetworkInterface| iface.name == interface_name;
 
-        // Find the network interface with the provided name
-        let interfaces = datalink::interfaces();
+        let interfaces = interfaces();
         let interface = interfaces
             .into_iter()
             .filter(interface_names_match)
             .next()
             .unwrap();
-        let ip_src: Ipv4Addr = match interface.ips.get(0).unwrap().ip() {
-            V4(ip) => ip,
-            V6(_) => panic!(""),
-        };
+        let ip_src: Ipv4Addr = get_addr(&interface);
         let mac_src = interface.mac.unwrap();
-        // Create a new channel, dealing with layer 2 packets
-        let (tx, rx) = match datalink::channel(&interface, Default::default()) {
+        let (tx, rx) = match channel(&interface, Config::default()) {
             Ok(Ethernet(tx, rx)) => (tx, rx),
             Ok(_) => panic!("Unhandled channel type"),
             Err(e) => panic!(
@@ -59,17 +67,20 @@ impl IcmpListener {
                 e
             ),
         };
-        let mac_dst =
-            MacAddr::from_str(&format!("{}", get_default_gateway().unwrap().mac_addr)).unwrap();
+        let mac_dst = MacAddr::from_str("00:1b:21:11:ed:00").unwrap();
 
         IcmpListener {
             tx,
             rx,
             ip_src,
-            ip_dst,
+            ip_dst: Ipv4Addr::LOCALHOST,
             mac_src,
             mac_dst,
         }
+    }
+
+    pub fn set_dest(&mut self, addr: Ipv4Addr) {
+        self.ip_dst = addr;
     }
 }
 impl Read for IcmpListener {
@@ -93,12 +104,8 @@ impl Read for IcmpListener {
                     }
                 }
                 if packet.get_icmp_type().0 == 0 {
-                    if &payload[0..5] == cmd_resp {
-                        //self.mac_src = eth_packet.get_source();
-                        //self.mac_dst = eth_packet.get_destination();
-                        //self.ip_src = ip_packet.get_source();
-                        //self.ip_dst = ip_packet.get_destination();
-                        let cmd = &payload[5..];
+                    if &payload[0..7] == cmd_resp {
+                        let cmd = &payload[7..];
                         let len = cmd.len();
                         for i in 0..len {
                             buffer[i] = cmd[i];
@@ -142,7 +149,6 @@ impl Write for IcmpListener {
         let mut buffer = [0; 1080];
         let mut new_packet = MutableEthernetPacket::new(&mut buffer).unwrap();
 
-        // Switch the source and destination
         new_packet.set_source(self.mac_src);
         new_packet.set_destination(self.mac_dst);
         new_packet.set_ethertype(EtherType::new(0x0800));
