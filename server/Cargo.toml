@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = "4.0.32"
 cursive = "0.20.0"
 cursive_table_view = "0.14.0"
 pnet = { version = "0.31.0", features = ["std"] }
 regex = "1.7.0"
+reqwest = { version = "0.11.13", features = ["json"] }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"

