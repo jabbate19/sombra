@@ -1,7 +1,7 @@
-use std::path::Path;
 use sha1::{Digest, Sha1};
 use std::fs::File;
 use std::io::{BufReader, Read};
+use std::path::Path;
 pub fn sha1sum(filepath: &Path) -> Result<String, Box<dyn std::error::Error>> {
     let f = File::open(&filepath)?;
     let mut reader = BufReader::new(f);

