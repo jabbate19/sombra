@@ -1,3 +1,0 @@
-﻿  Source.cpp
-C:\Users\Joe Abbate\source\repos\RShell\RShell\Source.cpp(411,41): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-  RShell.vcxproj -> C:\Users\Joe Abbate\source\repos\RShell\x64\Debug\RShell.exe

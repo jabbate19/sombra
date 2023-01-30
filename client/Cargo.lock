@@ -309,19 +309,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
-name = "rshell"
-version = "0.1.0"
-dependencies = [
- "bsod",
- "default-net",
- "nix",
- "pnet",
- "sha1",
- "wait-timeout",
- "windows 0.43.0",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.147"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -336,6 +323,19 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "sombra"
+version = "0.1.0"
+dependencies = [
+ "bsod",
+ "default-net",
+ "nix",
+ "pnet",
+ "sha1",
+ "wait-timeout",
+ "windows 0.43.0",
 ]
 
 [[package]]

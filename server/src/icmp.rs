@@ -7,7 +7,7 @@ use pnet::{
     ipnetwork::IpNetwork,
     packet::{
         ethernet::{EtherType, EthernetPacket, MutableEthernetPacket},
-        icmp::{IcmpPacket, IcmpType, MutableIcmpPacket},
+        icmp::{self, IcmpPacket, IcmpType, MutableIcmpPacket},
         ip::IpNextHeaderProtocol,
         ipv4::{checksum, Ipv4Packet, MutableIpv4Packet},
         Packet,
@@ -16,11 +16,9 @@ use pnet::{
 };
 use std::{
     io::{Read, Write},
-    net::{
-        Ipv4Addr,
-    },
+    net::Ipv4Addr,
     str::FromStr,
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 pub struct IcmpListener {
@@ -30,6 +28,7 @@ pub struct IcmpListener {
     ip_dst: Ipv4Addr,
     mac_src: MacAddr,
     mac_dst: MacAddr,
+    timeout: Duration,
 }
 
 fn get_addr(interface: &NetworkInterface) -> Ipv4Addr {
@@ -73,11 +72,16 @@ impl IcmpListener {
             ip_dst: Ipv4Addr::LOCALHOST,
             mac_src,
             mac_dst,
+            timeout: Duration::from_secs(1),
         }
     }
 
     pub fn set_dest(&mut self, addr: Ipv4Addr) {
         self.ip_dst = addr;
+    }
+
+    pub fn set_timeout(&mut self, duration: Duration) {
+        self.timeout = duration;
     }
 }
 impl Read for IcmpListener {
@@ -113,7 +117,7 @@ impl Read for IcmpListener {
             }
             let current_time = SystemTime::now();
             let dur = current_time.duration_since(start_time).unwrap();
-            if dur.as_secs_f64() > 10.0 {
+            if dur > self.timeout {
                 return Ok(0);
             }
         }
@@ -129,6 +133,7 @@ impl Write for IcmpListener {
         let mut new_icmp_packet = MutableIcmpPacket::new(&mut buffer).unwrap();
         new_icmp_packet.set_icmp_type(IcmpType::new(8));
         new_icmp_packet.set_payload(&balls);
+        new_icmp_packet.set_checksum(icmp::checksum(&new_icmp_packet.to_immutable()));
         let mut buffer = [0; 1060];
         let mut new_ip_packet = MutableIpv4Packet::new(&mut buffer).unwrap();
         new_ip_packet.set_next_level_protocol(IpNextHeaderProtocol::new(1));

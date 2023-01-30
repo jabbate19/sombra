@@ -1,61 +1,13 @@
 {
-  "teams": 14,
+  "teams": 1,
   "setup": [
     {
-      "ip": "10.x.1.10",
+      "ip": "129.21.49.90",
       "hostname": "ubuntu1",
-      "os": "LINUX",
+      "os": "WINDOWS",
       "groups": [
-        "SSH-LINUX",
-        "ICMP-LINUX"
       ],
-      "connected": false
-    },
-    {
-      "ip": "10.x.1.40",
-      "hostname": "ubuntu2",
-      "os": "LINUX",
-      "groups": [
-        "SSH-LINUX",
-        "ICMP-LINUX"
-      ],
-      "connected": false
-    },
-    {
-      "ip": "192.168.253.x",
-      "hostname": "ROUTER",
-      "os": "BSD",
-      "groups": [
-        "Routing"
-      ],
-      "connected": false
-    },
-    {
-      "ip": "10.x.2.3",
-      "hostname": "database",
-      "os": "LINUX",
-      "groups": [
-        "SQL"
-      ],
-      "connected": false
-    },
-    {
-      "ip": "10.x.2.10",
-      "hostname": "database",
-      "os": "LINUX",
-      "groups": [
-        "HTTP"
-      ],
-      "connected": false
-    },
-    {
-      "ip": "10.x.2.2",
-      "hostname": "web",
-      "os": "LINUX",
-      "groups": [
-        "HTTP"
-      ],
-      "connected": false
+      "connected": true
     }
   ],
   "breaks": {

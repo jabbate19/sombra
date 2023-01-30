@@ -1002,20 +1002,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rserver"
-version = "0.1.0"
-dependencies = [
- "clap",
- "cursive",
- "cursive_table_view",
- "pnet",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "rustix"
 version = "0.36.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1147,6 +1133,20 @@ checksum = "02e2d2db9033d13a1567121ddd7a095ee144db4e1ca1b1bda3419bc0da294ebd"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "sombra-server"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "cursive",
+ "cursive_table_view",
+ "pnet",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
